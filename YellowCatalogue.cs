@@ -81,6 +81,7 @@ namespace PhoneBookApp
                     await HandleCreate();
                     break;
                 case State.Update:
+                    await HandleUpdate();
                     break;
                 case State.Delete:
                     await ReadAll();
@@ -157,10 +158,48 @@ namespace PhoneBookApp
             newRule.LeftJustified();
             newRule.RuleStyle("yellow dim");
             AnsiConsole.Write(newRule);
-            Contact newContact = new Contact();
-            DisplayContact();
+
+            await CreateContact(null);
+        }
+
+        private async Task HandleUpdate()
+        {
+            Console.Clear();
+            await ReadAll();
+
+            var newRule = new Spectre.Console.Rule("[white]ID Selection[/]");
+            newRule.LeftJustified();
+            newRule.RuleStyle("yellow dim");
+            AnsiConsole.Write(newRule);
+
+            int parsedId;
+            var Id = AnsiConsole.Ask<string>("Enter an [underline blue]ID[/] to be [underline bold yellow]updated[/]");
+            while (!Int32.TryParse(Id, out parsedId))
+            {
+                AnsiConsole.MarkupLine("[yellow underline]Incorrect ID[/] entered, try again");
+                Id = AnsiConsole.Ask<string>("Enter an [underline blue]ID[/] to be [underline bold red]deleted[/]");
+            }
+
+            Contact contact = await _phoneBookService.GetContactAsync(parsedId);
+            if (contact == null)
+            {
+                Console.WriteLine("Contact not found in yellow catalogue.");
+                return;
+            }
+
+            // Call function to handle contact, allow updates etc
+            await CreateContact(contact);
+        }
+
+        private async Task CreateContact(Contact? contact)
+        {
+
+            Contact newContact;
+            if (contact == null) newContact = new Contact();
+            else newContact = contact;
+            DisplayContact(newContact);
             Dictionary<string, bool> confirmedAnswers = new Dictionary<string, bool>();
-            while(true)
+            while (true)
             {
 
                 var prompt = new SelectionPrompt<String>()
@@ -189,12 +228,14 @@ namespace PhoneBookApp
                     continue;
                 }
 
-                if(option == "Submit")
+                if (option == "Submit")
                 {
                     if (ConfirmUser("[green underline]Finish[/] creating the contact?"))
                     {
-                        await _phoneBookService.CreateContactAsync(newContact);
-                        AnsiConsole.MarkupLine("[green]Successfully Submitted![/]");
+                        if (contact == null)
+                            await CreateNewContact(newContact);
+                        else
+                            await UpdateContact(contact);
                         break;
                     }
                     continue;
@@ -202,7 +243,7 @@ namespace PhoneBookApp
 
                 var ans = PromptUser($"Enter in your {option}: ");
                 // TODO: Handle verification here
-                if(option == "Name")
+                if (option == "Name")
                     newContact.Name = ans;
                 if (option == "Email")
                     newContact.Email = ans;
@@ -218,7 +259,6 @@ namespace PhoneBookApp
                 DisplayContact(newContact);
             }
         }
-
         private void ResetState() => SelectedState = State.Menu;
         
         private void DisplayContact(Contact? contact = null)
@@ -276,6 +316,21 @@ namespace PhoneBookApp
             newRule.LeftJustified();
             newRule.RuleStyle("yellow dim");
             AnsiConsole.Write(rule);
+        }
+
+        private async Task CreateNewContact(Contact contact)
+        {
+            await _phoneBookService.CreateContactAsync(contact);
+            AnsiConsole.MarkupLine("[green]Successfully Submitted![/]");
+        }
+
+        private async Task UpdateContact(Contact contact)
+        {
+            bool res = await _phoneBookService.UpdateContactAsync(contact);
+            if (res)
+                AnsiConsole.MarkupLine("[green]Successfully Submitted![/]");
+            else
+                AnsiConsole.MarkupLine("[red]Error occured[/] during update submission");
         }
 
     }
